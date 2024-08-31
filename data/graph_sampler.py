@@ -5,7 +5,7 @@ import torch.utils.data
 import scipy.sparse as sp
 from utils.graph_processing import *
 
-class GraphBuild(torch.utils.data.Dataset):
+class GraphSampler(torch.utils.data.Dataset):
     def __init__(self, G_list, features='default', normalize=True, assign_feat='default', max_num_nodes=0):
         self.adj_all = []
         self.len_all = []
@@ -38,7 +38,7 @@ class GraphBuild(torch.utils.data.Dataset):
                 #     f[i, :-1] = util.node_dict(G)[u]['feat']
                 #     f[i, -1] = np.sum(adj[i, :])  # Node degree
                 self.feature_all.append(f)
-            elif features == 'deg-num':
+            elif features == 'deg':
                 degs = np.sum(np.array(adj), 1)
                 if self.max_num_nodes > G.number_of_nodes():
                     degs = np.expand_dims(np.pad(degs, (0, self.max_num_nodes - G.number_of_nodes()), 'constant', constant_values=0),
