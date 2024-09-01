@@ -6,72 +6,84 @@ import numpy as np
 from graph_convolution import GraphConv, GraphConv_
 from graph_aggregation import GraphAggr
 
+import torch
+import torch.nn as nn
+
 class Generator(nn.Module):
-    """Generator network."""
-    def __init__(self, conv_dims, z_dim, vertexes, edges, nodes, dropout):
+    def __init__(self, conv_dim, z_dim, num_nodes, num_features, dropout):
         super(Generator, self).__init__()
 
-        self.vertexes = vertexes
-        self.edges = edges
-        self.nodes = nodes
-
+        self.num_nodes = num_nodes
+        self.num_features = num_features
+ 
         layers = []
-        for c0, c1 in zip([z_dim]+conv_dims[:-1], conv_dims):
+        for c0, c1 in zip([z_dim] + conv_dim[:-1], conv_dim):
             layers.append(nn.Linear(c0, c1))
             layers.append(nn.Tanh())
             layers.append(nn.Dropout(p=dropout, inplace=True))
-        self.layers = nn.Sequential(*layers)
+        self.multidense_layer = nn.Sequential(*layers)
 
-        self.edges_layer = nn.Linear(conv_dims[-1], edges * vertexes * vertexes)
-        self.nodes_layer = nn.Linear(conv_dims[-1], vertexes * nodes)
-        self.dropoout = nn.Dropout(p=dropout)
+        self.edges_layer = nn.Linear(conv_dim[-1], num_nodes * num_nodes)
+        self.nodes_layer = nn.Linear(conv_dim[-1], num_nodes * num_features)
 
-    def forward(self, x):
-        output = self.layers(x)
-        edges_logits = self.edges_layer(output)\
-                       .view(-1,self.edges,self.vertexes,self.vertexes)
-        edges_logits = (edges_logits + edges_logits.permute(0,1,3,2))/2
-        edges_logits = self.dropoout(edges_logits.permute(0,2,3,1))
+        self.dropout = dropout
 
-        nodes_logits = self.nodes_layer(output)
-        nodes_logits = self.dropoout(nodes_logits.view(-1,self.vertexes,self.nodes))
+        if dropout > 0.001:
+            self.dropout_layer = nn.Dropout(p=dropout)
+
+    def forward(self, z):
+
+        output = self.multidense_layer(z)
+
+        # shape [batch_size, num_nodes, num_nodes]
+        edges_logits = self.edges_layer(output).view(-1, self.num_nodes, self.num_nodes)
+
+        # make the adjacency matrix symmetric by averaging it with its transpose
+        edges_logits = (edges_logits + edges_logits.transpose(1, 2)) / 2
+        if self.dropout > 0.001:
+            edges_logits = self.dropout_layer(edges_logits)
+            
+        # shape [batch_size, num_nodes, num_features]
+        nodes_logits = self.nodes_layer(output).view(-1, self.num_nodes, self.num_features)
+        if self.dropout > 0.001:
+            nodes_logits = self.dropout_layer(nodes_logits)
 
         return edges_logits, nodes_logits
 
 
+
 class Discriminator(nn.Module):
-    """Discriminator network with PatchGAN."""
-    def __init__(self, conv_dim, m_dim, b_dim, dropout):
+    def __init__(self, 
+                 gc_dim: list,
+                 aggr_dim: int, 
+                 linear_dim: list,
+                 dropout: float=0.0):
+    
         super(Discriminator, self).__init__()
 
-        graph_conv_dim, aux_dim, linear_dim = conv_dim
-        # discriminator
-        self.gcn_layer = GraphConv_(m_dim, graph_conv_dim, b_dim, dropout=dropout)
-        self.agg_layer = GraphAggr(graph_conv_dim[-1], aux_dim, b_dim, dropout)
+        gc_input_dim, gc_output_dim = gc_dim    # gc_output_dim is a list
+
+        self.gcn_layer = GraphConv_(gc_input_dim, gc_output_dim, dropout=dropout)
+        self.agg_layer = GraphAggr(gc_output_dim[-1], aggr_dim, dropout)
 
         # multi dense layer
         layers = []
-        for c0, c1 in zip([aux_dim]+linear_dim[:-1], linear_dim):
+        for c0, c1 in zip([aggr_dim]+linear_dim[:-1], linear_dim):
             layers.append(nn.Linear(c0,c1))
             layers.append(nn.Dropout(dropout))
-        self.linear_layer = nn.Sequential(*layers)
+        self.multidense_layer = nn.Sequential(*layers)
 
         self.output_layer = nn.Linear(linear_dim[-1], 1)
 
-    def forward(self, adj, hidden, node, activatation=None):
-        adj = adj[:,:,:,1:].permute(0,3,1,2)
-        annotations = torch.cat((hidden, node), -1) if hidden is not None else node
-        h = self.gcn_layer(annotations, adj)
-        annotations = torch.cat((h, hidden, node) if hidden is not None\
-                                 else (h, node), -1)
-        h = self.agg_layer(annotations, torch.tanh)
-        h = self.linear_layer(h)
+    def forward(self, x, adj, activatation=None):
+        
+        hidden = self.gcn_layer(x, adj)
+        hidden = torch.cat((hidden, x), -1)
+        hidden = self.agg_layer(hidden, torch.tanh)
+        hidden = self.multidense_layer(hidden)
 
-        # Need to implemente batch discriminator #
-        ##########################################
-
-        output = self.output_layer(h)
+        output = self.output_layer(hidden)
         output = activatation(output) if activatation is not None else output
 
-        return output, h
+        return output, hidden
 

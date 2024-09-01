@@ -32,19 +32,15 @@ class GraphConv(nn.Module):
         self.input_dim = input_dim
         self.output_dim = output_dim
         
-        self.weight = nn.Parameter(torch.FloatTensor(input_dim, output_dim).to(self.device))
-        nn.init.xavier_uniform_(self.weight)
-        
+        self.linear = nn.Linear(input_dim, output_dim)
+        self.bias = nn.Parameter(torch.FloatTensor(output_dim)) if bias else None
+        nn.init.xavier_uniform_(self.linear.weight)
         if bias:
-            self.bias = nn.Parameter(torch.FloatTensor(output_dim).to(self.device))
             nn.init.zeros_(self.bias)
-        else:
-            self.bias = None
 
     def forward(self, x, adj):  
-
-        x.to(self.device)
-        adj.to(self.device)
+        x = x.to(self.device)
+        adj = adj.to(self.device)
         
         if not self.expect_normal:
             adj = normalize_adj(adj)
@@ -52,58 +48,62 @@ class GraphConv(nn.Module):
         if self.dropout > 0.001:
             x = self.dropout_layer(x)
 
-        y = torch.matmul(adj, x)
+        hidden = self.linear(x)  # linear transformation
+        hidden = torch.matmul(adj, hidden)  # aggregation
 
         if self.add_self:
-            y += x
-
-        y = torch.matmul(y,self.weight)
+            hidden += x  
 
         if self.bias is not None:
-            y = y + self.bias
+            hidden += self.bias
 
         if self.normalize_embedding:
-            if y.dim() == 3:
-                y = F.normalize(y, p=2, dim=2) # if batch dimension is present
-            elif y.dim() == 2:
-                y = F.normalize(y, p=2, dim=1)
+            if hidden.dim() == 3:
+                hidden = F.normalize(hidden, p=2, dim=2)
+            elif hidden.dim() == 2:
+                hidden = F.normalize(hidden, p=2, dim=1)
 
-        return y
+        return hidden
+
     
 class GraphConv_(nn.Module):
     def __init__(self, 
                  input_dim: int,
                  output_dim: list,
-                 dropout: float=0.0
-                ):
+                 dropout: float=0.0,
+                 add_self=False, 
+                 normalize_embedding=True, 
+                 expect_normal=False, 
+                 device=None):
         
         """
-        Convolution consisting of linear layers
+        2 graph convolution operations
         """
-            
         super(GraphConv_, self).__init__()
 
-        self.linear1 = nn.Linear(input_dim, output_dim[0])
-        self.linear2 = nn.Linear(output_dim[0], output_dim[1])
-        
+        self.conv1 = GraphConv(input_dim, output_dim[0], dropout, 
+                               add_self=add_self, 
+                               normalize_embedding=normalize_embedding, 
+                               expect_normal=expect_normal, 
+                               device=device)
+
+        self.conv2 = GraphConv(output_dim[0], output_dim[1], dropout, 
+                               add_self=add_self, 
+                               normalize_embedding=normalize_embedding, 
+                               expect_normal=expect_normal, 
+                               device=device)
+
         self.dropout = dropout
 
-        if dropout > 0.001:
-            self.dropout_layer = nn.Dropout(dropout)
-
     def forward(self, x, adj, activation=None):
-        hidden = torch.stack([self.linear1(x) for _ in range(adj.size(1))], 1)
-        hidden = torch.einsum('bijk,bikl->bijl', (adj, hidden))
-        hidden = torch.sum(hidden, 1) + self.linear1(input)
-        hidden = activation(hidden) if activation is not None else hidden
-        
-        if self.dropout > 0.001:
-            hidden = self.dropout(hidden)
 
-        output = torch.stack([self.linear2(hidden) for _ in range(adj.size(1))], 1)
-        output = torch.einsum('bijk,bikl->bijl', (adj, output))
-        output = torch.sum(output, 1) + self.linear2(hidden)
-        output = activation(output) if activation is not None else output
-        output = self.dropout(output)
+        hidden = self.conv1(x, adj)
+        if activation is not None:
+            hidden = activation(hidden)
+
+
+        output = self.conv2(hidden, adj)
+        if activation is not None:
+            output = activation(output)
 
         return output
