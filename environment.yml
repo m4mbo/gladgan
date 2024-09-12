@@ -1,0 +1,9 @@
+name: gadan  
+channels:
+  - conda-forge  
+  - pytorch
+dependencies:
+  - numpy
+  - networkx
+  - pytorch
+  - scikit-learn

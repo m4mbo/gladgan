@@ -1,8 +1,6 @@
-import community
-import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
-import scipy.sparse as sp
+import torch.nn.functional as F
 import torch
 
 def node_iter(G):
@@ -18,41 +16,37 @@ def node_dict(G):
         node_dict = G.node
     return node_dict
 
-def adj_process(adjs):
-    g_num, n_num, n_num = adjs.shape
-    adjs = adjs.detach()
-    for i in range(g_num):
-        adjs[i] += torch.eye(n_num).cuda()
-        adjs[i][adjs[i]>0.] = 1.
-        degree_matrix = torch.sum(adjs[i], dim=-1, keepdim=False)
-        degree_matrix = torch.pow(degree_matrix,-1)
-        degree_matrix[degree_matrix == float("inf")] = 0.
-        degree_matrix = torch.diag(degree_matrix)
-        adjs[i] = torch.mm(degree_matrix, adjs[i])
-    return adjs
+import torch.nn.functional as F
 
-def NormData(adj):
-    adj=adj.tolist()
-    adj_norm = normalize_adj(adj )
-    adj_norm = adj_norm.toarray()
-    #adj = adj + sp.eye(adj.shape[0])
-    #adj = adj.toarray()
-    #feat = feat.toarray()
-    return adj_norm
+def process_adj(adj, method, temperature=1.0):
+    """
+    Process the adjacency matrix logits based on the specified method.
+    """
+    if method == 'soft':
+        # gumbel-softmax without hard threshold
+        adj = F.gumbel_softmax(adj.view(-1, 2) / temperature, hard=False).view(adj.size()[:-1])
+    elif method == 'hard':
+        # gumbel-softmax with hard threshold to binarize
+        adj = F.gumbel_softmax(adj.view(-1, 2) / temperature, hard=True).view(adj.size()[:-1])
 
-def normalize_adj(adj):
-    """Symmetrically normalize adjacency matrix."""
-    adj = sp.coo_matrix(adj)
-    rowsum = np.array(adj.sum(1))
-    d_inv_sqrt = np.power(rowsum, -0.5).flatten()
-    d_inv_sqrt[np.isinf(d_inv_sqrt)] = 0.
-    d_mat_inv_sqrt = sp.diags(d_inv_sqrt)
-    return adj.dot(d_mat_inv_sqrt).transpose().dot(d_mat_inv_sqrt).tocoo()
+    return adj
 
-def preprocess_graph(adj):
-    adj = sp.coo_matrix(adj)
-    adj_ = adj + sp.eye(adj.shape[0])
-    rowsum = np.array(adj_.sum(1))
-    degree_mat_inv_sqrt = sp.diags(np.power(rowsum, -0.5).flatten())
-    adj_normalized = adj_.dot(degree_mat_inv_sqrt).transpose().dot(degree_mat_inv_sqrt).tocoo()
-    return sp.sparse_to_tuple(adj_normalized)
+
+def normalize_adj(adj, eps=1e-9):
+    """
+    Row normalize adjacency matrix with epsilon to prevent division by zero.
+    """
+    if adj.dim() == 2:
+        # single adjacency matrix case
+        rowsum = adj.sum(1)  # shape: (num_nodes)
+        r_inv = (rowsum + eps).pow(-1)  # add epsilon to rowsum to prevent division by zero
+        r_mat_inv = torch.diag(r_inv)  
+        adj_normalized = torch.matmul(r_mat_inv, adj)  
+    elif adj.dim() == 3:
+        # batch of adjacency matrices case
+        rowsum = adj.sum(2)  # shape: (batch_size, num_nodes)
+        r_inv = (rowsum + eps).pow(-1)  # add epsilon to rowsum to prevent division by zero
+        r_mat_inv = torch.stack([torch.diag(r) for r in r_inv])  
+        adj_normalized = torch.bmm(r_mat_inv, adj) 
+
+    return adj_normalized

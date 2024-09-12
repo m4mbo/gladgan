@@ -1,6 +1,5 @@
 import networkx as nx
 import numpy as np
-import scipy as sc
 import os
 import re
 from utils import graph_processing
@@ -32,13 +31,12 @@ def read_graphfile(datadir, dataname, max_nodes=None):
     try:
         with open(filename_node_attrs) as f:
             for line in f:
-                line = line.strip("\s\n")
-                attrs = [float(attr) for attr in re.split("[,\s]+", line) if not attr == '']
+                line = line.strip()
+                attrs = [float(attr) for attr in re.split(r"[,\s]+", line)]  
                 node_attrs.append(np.array(attrs))
     except IOError:
         print('No node attributes')
        
-    label_has_zero = False
     filename_graphs=prefix + '_graph_labels.txt'
     graph_labels=[]
 
