@@ -1,17 +1,6 @@
 #!/bin/bash
 
-DATASETS=(
-    "NCI1"
-    "Tox21_MMP"
-    "Tox21_HSE"
-    "Tox21_p53"
-    "BZR"
-    "COX2"
-    "DHFR"
-    "ENZYMES"
-    "IMDB-MULTI"
-    "AIDS"
-)
+DATASETS="BZR"
 
 BATCH_SIZE=64
 WGAN_EPOCHS=10000
@@ -27,22 +16,17 @@ DROPOUT=0.0
 GUMBELL_TYPE="hard-gumbell"
 N_CRITIC=5
 
-export BATCH_SIZE WGAN_EPOCHS EPOCHS_DECAY LR_UPDATE_STEP PATIENCE G_LR D_LR E_LR ENCODER_EPOCHS DROPOUT GUMBELL_TYPE N_CRITIC
+if [ -d "$DATASET" ]; then
+    echo "Directory $DATASET exists. Deleting..."
+    rm -rf "$DATASET"
+fi
 
-run_experiment() {
-    DATASET=$1
+echo "Creating directory $DATASET..."
+mkdir "$DATASET"
 
-    mkdir -p $DATASET
-    cd $DATASET
+cd "$DATASET"
 
-    if [[ "$DATASET" == "NCI1" || "$DATASET" == "Tox21_MMP" || "$DATASET" == "Tox21_HSE" || "$DATASET" == "Tox21_p53" || "$DATASET" == "IMDB-MULTI" ]]; then
-        FEAT="deg"
-    else
-        FEAT="default"
-    fi
-
-    python3 ../../main.py \
-        --quiet \
+python3 ../../main.py \
         --DS "$DATASET" \
         --batch_size "$BATCH_SIZE" \
         --feat "$FEAT" \
@@ -59,13 +43,3 @@ run_experiment() {
         --n_critic "$N_CRITIC" \
         --plot_loss
 
-    cd ..
-    
-    echo "Completed script for dataset: $DATASET"
-}
-
-export -f run_experiment 
-
-parallel --eta --progress --ungroup -j 3 run_experiment ::: "${DATASETS[@]}"
-
-echo "All jobs are complete."
