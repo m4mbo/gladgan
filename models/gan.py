@@ -73,7 +73,7 @@ class Discriminator(nn.Module):
         layers = []
         for c0, c1 in zip([aggr_dim]+linear_dim[:-1], linear_dim):
             layers.append(nn.Linear(c0,c1))
-            layers.append(nn.LayerNorm(c1))     # layer norm -> drop-in replacement to batch norm
+            # layers.append(nn.LayerNorm(c1))     # layer norm -> drop-in replacement to batch norm
             layers.append(nn.Dropout(dropout))
         self.multidense_layer = nn.Sequential(*layers)
 

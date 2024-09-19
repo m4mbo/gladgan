@@ -4,6 +4,7 @@ from utils.graph_processing import process_adj
 from utils.operations import save_checkpoint
 import os
 import torch.nn.functional as F
+import argparse
 
 
 def train_encoder(G: nn.Module,
@@ -15,7 +16,8 @@ def train_encoder(G: nn.Module,
                   device: torch.device,
                   kappa: int,
                   gumbell_type: str,
-                  checkpoint_dir: str
+                  checkpoint_dir: str,
+                  args: argparse.Namespace
                   ):
     
     G.eval()
@@ -59,7 +61,8 @@ def train_encoder(G: nn.Module,
             e_optimizer.step()
 
         avg_eloss = total_eloss / batch_count
-        print(f'\rEncoder Training | Epoch {epoch + 1}/{epochs} | Encoder Loss: {avg_eloss:.4f}', end='')
+        if not args.quiet:
+            print(f'\rEncoder Training | Epoch {epoch + 1}/{epochs} | Encoder Loss: {avg_eloss:.4f}', end='')
 
     print()  
     save_checkpoint(E, e_optimizer, epochs, avg_eloss, os.path.join(checkpoint_dir, 'E_checkpoint_final.pth'))

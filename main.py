@@ -1,7 +1,13 @@
+import glob
+import warnings
+import re
+import os
+import sys
 from train.train_encoder import train_encoder
 from train.train_wgan import train_wgan
 from torch.utils.data import DataLoader
 from utils.operations import *
+from utils.plots import *
 from utils.graph_processing import *
 from data.graph_sampler import GraphSampler
 from data.load_data import read_graphfile
@@ -10,20 +16,16 @@ from models.gan import Generator, Discriminator
 from models.encoder import Encoder
 from utils.parser import parse_arguments
 from train.anomaly_detection import detect_anomalies
-import glob
-import warnings
-import re
-import os
 
 def prepare_data(datadir, args):
 
     if args.DS.startswith("Tox21"):
-        graphs_train = read_graphfile(datadir, args.DS + '_training', max_nodes=0)
-        graphs_test = read_graphfile(datadir, args.DS + '_testing', max_nodes=0)
+        graphs_train = read_graphfile(datadir, args.DS + '_training', args.quiet, max_nodes=0)
+        graphs_test = read_graphfile(datadir, args.DS + '_testing', args.quiet, max_nodes=0)
         graphs = graphs_train + graphs_test
         graphs_train_labels = [graph.graph['label'] for graph in graphs_train]
     else:
-        graphs = read_graphfile(datadir, args.DS, max_nodes=0)  
+        graphs = read_graphfile(datadir, args.DS, args.quiet, max_nodes=0)  
         graphs_train, graphs_test = train_test_split(graphs, test_size=0.2, random_state=42)
         graphs_train_labels = [graph.graph['label'] for graph in graphs_train]
 
@@ -86,9 +88,13 @@ if __name__ == "__main__":
 
     args = parse_arguments()
 
-    DATADIR = 'datasets/'
+    repo_dir = os.path.abspath(os.path.dirname(sys.argv[0]))
+
+    DATADIR = os.path.join(repo_dir, 'datasets/')
     DS = 'NCI1'
     CHECKPOINT_DIR = 'checkpoints/'
+    PLOTS_DIR = 'plots/'
+    LOGS_DIR = 'logs/'
     DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     max_num_nodes, dataset_sampler_train, data_loader_train, data_loader_test = prepare_data(DATADIR, args)
@@ -106,6 +112,15 @@ if __name__ == "__main__":
     WGAN_SAVE_ITERS = [300, 500, 1000, 2000, 5000, 10000, 20000, 30000, 40000, 50000, 100000, 150000]
     E_LINEAR_DIM = [128, 64]
     KAPPA = 1.0
+
+    if not os.path.exists(CHECKPOINT_DIR):
+        os.mkdir(CHECKPOINT_DIR)
+    
+    if not os.path.exists(PLOTS_DIR) and args.plot_loss:
+        os.mkdir(PLOTS_DIR)
+
+    if not os.path.exists(LOGS_DIR):
+        os.mkdir(LOGS_DIR)
 
     G = Generator(G_CONV_DIM, Z_DIM, max_num_nodes, dataset_sampler_train.feat_dim, args.dropout).to(DEVICE)
     D = Discriminator(D_CONV_DIM, D_AGGR_DIM, D_LINEAR_DIM, args.dropout).to(DEVICE)
@@ -125,21 +140,31 @@ if __name__ == "__main__":
         start_epoch = 0
 
     if not args.wgan_pretrained:
-        train_wgan(G, D, E, g_optimizer, d_optimizer, e_optimizer, start_epoch, args, data_loader_train, 
+        losses = train_wgan(G, D, E, g_optimizer, d_optimizer, e_optimizer, start_epoch, args, data_loader_train, 
                    data_loader_test, DEVICE, Z_DIM, WGAN_SAVE_ITERS, CHECKPOINT_DIR, LAMBDA_GP, KAPPA)
 
     load_latest_checkpoints(G, D, g_optimizer, d_optimizer, CHECKPOINT_DIR)
 
     if not args.encoder_pretrained:
-        train_encoder(G, D, E, e_optimizer, args.encoder_epochs, data_loader_train, DEVICE, KAPPA, args.gumbell_type, CHECKPOINT_DIR)
+        train_encoder(G, D, E, e_optimizer, args.encoder_epochs, data_loader_train, DEVICE, KAPPA, args.gumbell_type, CHECKPOINT_DIR, args)
 
     _, _ = load_checkpoint(E, e_optimizer, os.path.join(CHECKPOINT_DIR, 'E_checkpoint_final.pth'))
 
-    detect_anomalies(G, E, D, args.gumbell_type, data_loader_test, KAPPA, DEVICE)
+    detect_anomalies(G, E, D, data_loader_test, KAPPA, DEVICE, args)
 
     scores = load_scores_from_file('scores.pkl')
 
     max_epoch = max(scores, key=scores.get) 
-    max_scores = scores[max_epoch]  
-    
-    print(f"Max scores at epoch {max_epoch}: {max_scores}")
+    max_score = scores[max_epoch]  
+
+    with open("logs/output.txt", "w") as f:
+
+        f.write("Parameters:\n")
+        for arg, value in vars(args).items():
+            f.write(f"{arg}: {value}\n")
+        
+        f.write(f"\nMax score at epoch {max_epoch}: {max_score}\n")
+
+    if args.plot_loss:
+        plot_losses(losses, PLOTS_DIR)
+

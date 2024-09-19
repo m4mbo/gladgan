@@ -7,8 +7,8 @@ def parse_arguments():
     parser.add_argument('--batch_size', type=int, default=64, help='Batch size.')
     parser.add_argument('--feat', type=str, default='deg', help='Type of node features to be used ("deg" for plain graphs, "default" for attributed graphs)')
     
-    parser.add_argument('--wgan_epochs', type=int, default=50000, help='Number of epochs for WGAN training.')
-    parser.add_argument('--epochs_decay', type=int, default=100000, help='Number of epochs over which to decay the learning rate.')
+    parser.add_argument('--wgan_epochs', type=int, default=10000, help='Number of epochs for WGAN training.')
+    parser.add_argument('--epochs_decay', type=int, default=5000, help='Number of epochs over which to decay the learning rate.')
     parser.add_argument('--lr_update_step', type=int, default=1000, help='Step size for updating learning rates.')
     parser.add_argument('--patience', type=int, default=200, help='Number of epochs to wait for improvement before stopping.')
     parser.add_argument('--resume_training', type=bool, default=False, help='Whether to resume training from a checkpoint.')
@@ -26,6 +26,9 @@ def parse_arguments():
     parser.add_argument('--wgan_pretrained', action='store_true', help='Use pretrained WGAN model.')
     parser.add_argument('--encoder_pretrained', action='store_true', help='Use pretrained encoder model.')
 
-    parser.add_argument('--early-stop', action='store_true', help='Early stop WGAN training.')
+    parser.add_argument('--early_stop', action='store_true', help='Early stop WGAN training.')
+    parser.add_argument('--plot_loss', action='store_true', help='Plot discriminator and generator losses over epochs.')
+    parser.add_argument('--quiet', action='store_true', help='Do not print to console.')
+
 
     return parser.parse_args()

@@ -4,7 +4,7 @@ import os
 import re
 from utils import graph_processing
 
-def read_graphfile(datadir, dataname, max_nodes=None):
+def read_graphfile(datadir, dataname, quiet, max_nodes=None):
     prefix = os.path.join(datadir, dataname, dataname)
     filename_graph_indic = prefix + '_graph_indicator.txt'
     graph_indic={}
@@ -24,7 +24,8 @@ def read_graphfile(datadir, dataname, max_nodes=None):
                 node_labels+=[int(line) - 1]
         num_unique_node_labels = max(node_labels) + 1
     except IOError:
-        print('No node labels')
+        if not quiet:
+            print('No node labels')
  
     filename_node_attrs=prefix + '_node_attributes.txt'
     node_attrs=[]
@@ -35,7 +36,8 @@ def read_graphfile(datadir, dataname, max_nodes=None):
                 attrs = [float(attr) for attr in re.split(r"[,\s]+", line)]  
                 node_attrs.append(np.array(attrs))
     except IOError:
-        print('No node attributes')
+        if not quiet:
+            print('No node attributes')
        
     filename_graphs=prefix + '_graph_labels.txt'
     graph_labels=[]

@@ -29,6 +29,8 @@ def train_wgan(G: nn.Module,
 
     torch.autograd.set_detect_anomaly(True)
     
+    losses = {'G': [], 'D': []}
+
     best_gloss = np.inf
     epochs_no_improve = 0
 
@@ -72,8 +74,13 @@ def train_wgan(G: nn.Module,
         if epoch % args.n_critic == 0:
             avg_gloss = total_gloss / batch_count
         
-        # psrint progress
-        print(f'\rWGAN Training | Epoch {epoch + 1}/{args.wgan_epochs} | Generator Loss: {avg_gloss:.4f} | Discriminator Loss: {avg_dloss:.4f}', end='')
+        # print progress
+        if not args.quiet:
+            print(f'\rWGAN Training | Epoch {epoch + 1}/{args.wgan_epochs} | Generator Loss: {avg_gloss:.4f} | Discriminator Loss: {avg_dloss:.4f}', end='')
+
+        # logging losses
+        losses['G'].append(avg_gloss)
+        losses['D'].append(avg_gloss)
 
         # early stopping
         if args.early_stop:
@@ -84,7 +91,8 @@ def train_wgan(G: nn.Module,
                 epochs_no_improve += 1
 
             if epochs_no_improve >= args.patience:
-                print(f"\nEarly stopping triggered after {epoch + 1} epochs due to no improvement in generator loss.", end='')
+                if not args.quiet:
+                    print(f"\nEarly stopping triggered after {epoch + 1} epochs due to no improvement in generator loss.", end='')
                 break
 
         # decay learning rate
@@ -106,9 +114,9 @@ def train_wgan(G: nn.Module,
 
             # testing
             print()
-            train_encoder(G, D, E, e_optimizer, args.encoder_epochs, data_loader_train, device, kappa, args.gumbell_type, checkpoint_dir)
+            train_encoder(G, D, E, e_optimizer, args.encoder_epochs, data_loader_train, device, kappa, args.gumbell_type, checkpoint_dir, args)
             _, _ = load_checkpoint(E, e_optimizer, os.path.join(checkpoint_dir, 'E_checkpoint_final.pth'))
-            detect_anomalies(G, E, D, args.gumbell_type, data_loader_test, kappa, device, epoch+1)
+            detect_anomalies(G, E, D, data_loader_test, kappa, device, args, epoch+1)
 
             # rolling back to states before E training  
             E.load_state_dict(E_initial_state)
@@ -119,6 +127,8 @@ def train_wgan(G: nn.Module,
     print()
     save_checkpoint(G, g_optimizer, args.wgan_epochs, avg_gloss, os.path.join(checkpoint_dir, 'G_checkpoint_final.pth'))
     save_checkpoint(D, d_optimizer, args.wgan_epochs, avg_dloss, os.path.join(checkpoint_dir, 'D_checkpoint_final.pth'))
+
+    return losses
 
 def train_d_step(G, D, g_optimizer, d_optimizer, x, adj, z, gumbell_type, device, lambda_gp):
 

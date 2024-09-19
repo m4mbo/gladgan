@@ -5,7 +5,7 @@ from sklearn.metrics import roc_auc_score
 import numpy as np
 from utils.operations import save_scores_to_file
 
-def detect_anomalies(G, E, D, gumbell_type, data_loader, kappa, device, epoch=None, file_path='scores.pkl'):
+def detect_anomalies(G, E, D, data_loader, kappa, device, args, epoch=None, file_path='scores.pkl'):
     G.eval()
     E.eval()
     D.eval()
@@ -23,7 +23,7 @@ def detect_anomalies(G, E, D, gumbell_type, data_loader, kappa, device, epoch=No
             z_hat = E(x, adj)
 
             adj_logits, x_tilde = G(z_hat)
-            adj_tilde = process_adj(adj_logits, gumbell_type)
+            adj_tilde = process_adj(adj_logits, args.gumbell_type)
             
             _, real_emb = D(x, adj)
             _, fake_emb = D(x_tilde, adj_tilde)
@@ -47,11 +47,16 @@ def detect_anomalies(G, E, D, gumbell_type, data_loader, kappa, device, epoch=No
 
     threshold = np.percentile(all_anomaly_scores, 95)
     predictions = [1 if score > threshold else 0 for score in all_anomaly_scores]  # 1: anomalous, 0: normal
+
+    all_labels = [0 if label == 0 else 1 for label in all_labels]
+    
     auc_score = roc_auc_score(all_labels, predictions) 
     
     if epoch is not None:
-        print(f"AUC score at epoch {epoch}: {auc_score}")
+        if not args.quiet:
+            print(f"AUC score at epoch {epoch}: {auc_score}")
         save_scores_to_file(file_path, epoch, auc_score)
     else:
-        print(f"Final AUC score: {auc_score}")
+        if not args.quiet:
+            print(f"Final AUC score: {auc_score}")
         save_scores_to_file(file_path, 'final', auc_score)

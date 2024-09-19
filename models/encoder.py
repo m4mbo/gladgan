@@ -16,7 +16,7 @@ class Encoder(nn.Module):
                  dropout: float=.0):
         super(Encoder, self).__init__()
 
-        self.gcn_layer = GraphConv(input_dim, linear_dim[0])
+        self.gcn_layer = GraphConv(input_dim, linear_dim[0], add_self=False)
         
         layers = []
         for c0, c1 in zip(linear_dim[:-1], linear_dim[1:]):
