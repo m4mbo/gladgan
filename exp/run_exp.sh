@@ -1,6 +1,6 @@
 #!/bin/bash
 
-DATASETS="BZR"
+DATASET="Tox21_p53"
 
 BATCH_SIZE=64
 WGAN_EPOCHS=10000
@@ -13,8 +13,14 @@ D_LR=0.0002
 E_LR=0.0002
 ENCODER_EPOCHS=1000
 DROPOUT=0.0
-GUMBELL_TYPE="hard-gumbell"
+GUMBELL_TYPE="no-gumbell"
 N_CRITIC=5
+
+if [[ "$DATASET" == "NCI1" || "$DATASET" == "Tox21_MMP" || "$DATASET" == "Tox21_HSE" || "$DATASET" == "Tox21_p53" || "$DATASET" == "IMDB-MULTI" ]]; then
+    FEAT="deg"
+else
+    FEAT="default"
+fi
 
 if [ -d "$DATASET" ]; then
     echo "Directory $DATASET exists. Deleting..."

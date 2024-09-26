@@ -16,8 +16,6 @@ def node_dict(G):
         node_dict = G.node
     return node_dict
 
-import torch.nn.functional as F
-
 def process_adj(adj, method, temperature=1.0):
     """
     Process the adjacency matrix logits based on the specified method.
@@ -28,9 +26,10 @@ def process_adj(adj, method, temperature=1.0):
     elif method == 'hard':
         # gumbel-softmax with hard threshold to binarize
         adj = F.gumbel_softmax(adj.view(-1, 2) / temperature, hard=True).view(adj.size()[:-1])
-
+    else:
+        adj = adj
+        
     return adj
-
 
 def normalize_adj(adj, eps=1e-9):
     """
