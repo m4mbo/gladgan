@@ -94,8 +94,8 @@ if __name__ == "__main__":
     DS = 'NCI1'
     CHECKPOINT_DIR = 'checkpoints/'
     PLOTS_DIR = 'plots/'
-    LOGS_DIR = 'logs/'
-    DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    LOGS_DIR = 'bin/'
+    DEVICE = torch.device('mps' if torch.backends.mps.is_available() else 'cpu')
 
     max_num_nodes, dataset_sampler_train, data_loader_train, data_loader_test = prepare_data(DATADIR, args)
 
@@ -157,7 +157,7 @@ if __name__ == "__main__":
     max_epoch = max(scores, key=scores.get) 
     max_score = scores[max_epoch]  
 
-    with open("logs/output.txt", "w") as f:
+    with open("bin/output.txt", "w") as f:
 
         f.write("Parameters:\n")
         for arg, value in vars(args).items():

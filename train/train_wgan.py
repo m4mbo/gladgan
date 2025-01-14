@@ -8,6 +8,7 @@ from train.train_encoder import train_encoder
 import argparse
 from train.anomaly_detection import detect_anomalies
 import copy
+from utils.logs import log_graph
 
 def train_wgan(G: nn.Module,
                D: nn.Module,
@@ -64,7 +65,7 @@ def train_wgan(G: nn.Module,
 
             # generator 
             if epoch % args.n_critic == 0:
-                gloss = train_g_step(G, D, g_optimizer, d_optimizer, z, args.gumbell_type)
+                gloss = train_g_step(G, D, g_optimizer, d_optimizer, z, args.gumbell_type, epoch, dloss)
                 total_gloss += gloss.item()
 
             total_dloss += dloss.item()    
@@ -173,13 +174,15 @@ def train_d_step(G, D, g_optimizer, d_optimizer, x, adj, z, gumbell_type, device
 
     return dloss
 
-def train_g_step(G, D, g_optimizer, d_optimizer, z, gumbell_type):
+def train_g_step(G, D, g_optimizer, d_optimizer, z, gumbell_type, epoch, dloss):
 
     adj_logits, x_hat = G(z)
     adj_hat = process_adj(adj_logits, gumbell_type)
 
     fake_logits, _ = D(x_hat, adj_hat)
     gloss = - torch.mean(fake_logits)
+
+    log_graph(adj_hat.cpu().detach().numpy(), gloss.item(), dloss.item(), epoch)
 
     # backward and optimize
     g_optimizer.zero_grad()

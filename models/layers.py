@@ -3,9 +3,6 @@ import torch.nn as nn
 from utils.graph_processing import normalize_adj
 import torch.nn.functional as F
 
-import torch
-import torch.nn as nn
-
 class GraphAggr(nn.Module):
 
     def __init__(self, input_dim, output_dim, dropout=.0):
@@ -48,7 +45,7 @@ class GraphConv(nn.Module):
         self.dropout = dropout
         self.normalize_embedding = normalize_embedding
 
-        self.device = device or torch.device("cuda"  if torch.cuda.is_available() else "cpu")
+        self.device = device or torch.device("mps" if torch.backends.mps.is_available() else "cpu")
 
         if dropout > 0.001:
             self.dropout_layer = nn.Dropout(p=dropout)
@@ -122,7 +119,6 @@ class GraphConv_(nn.Module):
         self.dropout = dropout
 
     def forward(self, x, adj, activation=None):
-
         hidden = self.conv1(x, adj)
         if activation is not None:
             hidden = activation(hidden)

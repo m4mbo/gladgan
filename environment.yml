@@ -1,10 +1,16 @@
-name: gadan  
+name: gladgan
 channels:
-  - conda-forge  
+  - conda-forge
   - pytorch
 dependencies:
+  - python=3.8
   - numpy
-  - networkx
-  - pytorch
   - scikit-learn
   - matplotlib
+  - graph-tool
+  - pip
+  - pandas
+  - jsonpickle
+  - fastparquet
+  - pip:
+    - networkx==2.0
