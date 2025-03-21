@@ -22,5 +22,5 @@ $ conda env create -f environment.yml
 ```
 And then to activate the environment:
 ```
-$ conda activate gadan
+$ conda activate gladgan
 ```
